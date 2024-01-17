@@ -1,4 +1,4 @@
-# Tissue swabs
+# Comparison of RAD Loci generated from minimally invasive swab samples and invasive tissue samples
 
 ## Intro
 
