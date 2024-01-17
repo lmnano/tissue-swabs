@@ -4,12 +4,14 @@ library(tidyr)
 library(ggplot2)
 library(forcats)
 
-### comparison of different mapping alogithms ###
+### Comparison of RAD Loci generated from minimally invasive swab samples and invasive tissue samples ###
+## RAD loci generating in STACKS
 
-#Data is not uploaded due to its size
-#Path to data
+### Comparison of different mapping algorithms ###
+# Mapped data not uploaded due to size and available upon request
 
 ###TABLE S2###
+#Path to data
 bamPath = "./data/tissue_swabs_comparisons/bowtie"
 blastPath = "./data/tissue_swabs_comparisons/blast"
 #Getting names for bam and index files and importing bam files along with their indexes into a list
@@ -224,7 +226,7 @@ querySubjectMetrics_bestMethodFINAL %>%
 
 ###Exogenous DNA results anlysis###
 
-###FIGURE 4###
+###FIGURE 5###
 taxaTablesFullNames = list.files(path = "./data/blastNTselectedtaxa/", full.names = TRUE)
 taxaTablesNames = list.files(path = "./data/blastNTselectedtaxa/")
 taxaTableList = lapply(taxaTablesFullNames, read.table, sep = "\t")
