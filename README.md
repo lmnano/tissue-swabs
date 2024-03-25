@@ -2,9 +2,25 @@
 
 ## Intro
 
-This is a project about comparing tissue and skin swab DNA samples from Proteus.
+This is a project about comparing tissue and skin swab DNA samples from Proteus anguinus.
 
 ## Scripts
+
+### Work in progress
+
+First script () is for making a blast databases from catalogs and genome to use as reference when blasting.
+
+Following this are the scripts for blasting catalogs against different databases (tissue, genome). There were three different options used for this BLAST (), local Bowtie2 () and global Bowtie2 ().
+
+The results that matched were run through an R script.
+
+The results that didn't match were blasted against the BLAST nt database (). This was done only for the best result of the three options (BLAST, local and global Bowtie2). These result were transformed into the right format (BLAST outfmt 0), and used as MEGAN6 input.
+
+
+
+### Figures
+
+The output from MEGAN6 was used as the input for making figures.
 
 In the R script scripts/tissue_swab_result_analysisFINAL.R is code used for producing certain tables and figures in the corresponding paper.
 
