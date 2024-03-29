@@ -3,6 +3,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(forcats)
+library(stringr)
 
 ### Comparison of RAD Loci generated from minimally invasive swab samples and invasive tissue samples ###
 ## RAD loci generating in STACKS
@@ -227,137 +228,74 @@ querySubjectMetrics_bestMethodFINAL %>%
 ###Exogenous DNA results anlysis###
 
 ###FIGURE 5###
-taxaTablesFullNames = list.files(path = "./data/blastNTselectedtaxa/", full.names = TRUE)
-taxaTablesNames = list.files(path = "./data/blastNTselectedtaxa/")
+taxaTablesFullNames = list.files(path = "./data/megan_output_limit/", full.names = TRUE)
+taxaTablesNames = list.files(path = "./data/megan_output_limit/")
 taxaTableList = lapply(taxaTablesFullNames, read.table, sep = "\t")
 names(taxaTableList) = taxaTablesNames
-taxaTableUnfiltered = taxaTableList[[6]]
-taxaTableUnfilteredName = taxaTablesNames[[6]]
-comboName = sub(pattern  = "taxa_.*(blast.*)_.*", replacement = "\\1", x = taxaTableUnfilteredName)
-taxaTable = taxaTableUnfiltered %>%
-  group_by(query_id) %>%
-  arrange(evalue, desc(perc_identity), .by_group = TRUE) %>%
-  slice_head(n = 1)
-superkingdoms = taxaTable %>%
-  filter(superkingdom != "unknown") %>%
-  group_by(query_id) %>%
-  mutate(n_superkingdom = n_distinct(superkingdom)) %>%
-  mutate(superkingdom = if_else(n_superkingdom > 1, "Undetermined", superkingdom)) %>%
-  ungroup() %>%
-  distinct(query_id, .keep_all = TRUE) %>%
-  group_by(superkingdom) %>%
-  summarize(number = n()) %>%
-  mutate(rank = "superkingdom") %>%
-  arrange(number) %>%
-  ungroup() %>%
-  mutate(perc = number/sum(number)) %>%
-  mutate(fctlevel = 1:nrow(.)) %>%
-  mutate(fctlevel = if_else(superkingdom == "unknown", as.integer(nrow(.) + 10000), fctlevel)) %>%
-  mutate(fctlevel = if_else(superkingdom == "Undetermined", as.integer(nrow(.) + 100000), fctlevel)) %>%
-  arrange(fctlevel) %>%
-  mutate(superkingdom = factor(superkingdom)) %>%
-  mutate(superkingdom = fct_inorder(superkingdom))
-ggplot(superkingdoms, aes(x="", y=perc, fill = fct_rev(superkingdom))) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0) +
-  labs(title = "Percentage of superkingdoms",
-       x = "Superkingdom",
-       y = "Percentage") +
-  guides(fill = guide_legend(title = "Superkingdom", reverse = TRUE)) +
-  theme_void()
-taxon_summary = function(taxon_df, ..., rank_in){
-  library(dplyr)
-  library(forcats)
-  out = taxon_df %>%
-    ungroup() %>%
-    distinct(query_id, .keep_all = TRUE) %>%
-    group_by(...) %>%
-    summarise(..., number = n()) %>%
-    distinct(..., .keep_all = TRUE) %>%
-    mutate(rank = rank_in) %>%
-    ungroup() %>%
-    mutate(perc = number/sum(number)) %>%
-    arrange(number)
-  fct = out[,1]
-  colnames(fct) = "fct"
-  rown = nrow(fct)
-  out = bind_cols(out, fct)
-  out2 = out %>%
-    mutate(fctlevel = 1:rown) %>%
-    mutate(fctlevel = if_else(fct == "unknown", as.integer(rown + 10000), fctlevel)) %>%
-    mutate(fctlevel = if_else(fct == "Undetermined", as.integer(rown + 100000), fctlevel)) %>%
-    arrange(fctlevel) %>%
-    mutate(fct = factor(fct)) %>%
-    mutate(fct = fct_inorder(fct))
-  return(out2)
-}
-bacteria = taxaTable %>%
-  filter(superkingdom == "Bacteria") %>%
-  group_by(query_id) %>%
-  mutate(n_class = n_distinct(class)) %>%
-  mutate(class_stat = if_else(n_class > 1, "Undetermined", class)) %>%
-  mutate(n_family = n_distinct(family)) %>%
-  mutate(family_stat = if_else(n_family > 1, "Undetermined", family)) %>%
-  mutate(n_order = n_distinct(order)) %>%
-  mutate(order_stat = if_else(n_order > 1, "Undetermined", order))
-bacteria_order_stat_other = taxon_summary(taxon_df = bacteria, order_stat, rank_in = "bacteria") %>%
-  mutate(order_grouped = if_else(perc < 0.05, "Other", order_stat)) %>%
-  group_by(order_grouped) %>%
-  summarise(order_grouped, n = sum(number)) %>%
-  distinct(order_grouped, .keep_all = TRUE) %>%
-  ungroup() %>%
-  mutate(perc = n/sum(n)) %>%
-  mutate(rank = "bacteria") %>%
-  arrange(n) %>%
-  mutate(fctlevel = 1:nrow(.)) %>%
-  mutate(fctlevel = if_else(order_grouped == "Other", as.integer(nrow(.) + 10000), fctlevel)) %>%
-  arrange(fctlevel) %>%
-  mutate(order_grouped = factor(order_grouped)) %>%
-  mutate(order_grouped = fct_inorder(order_grouped))
-bacteria_order_other = bacteria_order_stat_other[, 1:4]
-ggplot(bacteria_order_stat_other, aes(x="", y=perc, fill = fct_rev(order_grouped))) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0) +
-  labs(title = "Percentage of bacterial orders",
-       x = "Order",
-       y = "Percentage") +
-  guides(fill = guide_legend(title = "Order", reverse = TRUE)) +
-  theme_void()
-eukaryota = taxaTable %>%
-  filter(superkingdom == "Eukaryota") %>%
-  group_by(query_id) %>%
-  mutate(n_kingdom = n_distinct(kingdom)) %>%
-  mutate(kingdom_stat = if_else(n_kingdom > 1, "Undetermined", kingdom)) %>%
-  mutate(n_phylum = n_distinct(phylum)) %>%
-  mutate(phylum_stat = if_else(n_phylum > 1, "Undetermined", phylum)) %>%
-  mutate(n_class = n_distinct(class)) %>%
-  mutate(class_stat = if_else(n_class > 1, "Undetermined", class)) %>%
-  mutate(n_order = n_distinct(order)) %>%
-  mutate(order_stat = if_else(n_order > 1, "Undetermined", order)) %>%
-  mutate(n_family = n_distinct(family)) %>%
-  mutate(family_stat = if_else(n_family > 1, "Undetermined", family))
-eukaryota_kingdoms = taxon_summary(eukaryota, kingdom_stat, rank_in = "Eukaryota")
-ggplot(eukaryota_kingdoms, aes(x="", y=perc, fill = fct_rev(fct))) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0) +
-  labs(title = "Percentage of Eukaryota kingdoms",
-       x = "Kingdom",
-       y = "Percentage") +
-  guides(fill = guide_legend(title = "Kingdom", reverse = TRUE)) +
-  theme_void()
-metazoa = eukaryota %>%
-  filter(kingdom == "Metazoa")
-chordata = metazoa %>%
-  filter(phylum == "Chordata")
-chordata_class = taxon_summary(chordata, class_stat, rank_in = "Chordata")
-ggplot(chordata_class, aes(x="", y=perc, fill = fct_rev(fct))) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0) +
-  labs(title = "Percentage of vertebrate classes",
-       x = "Class",
-       y = "Percentage") +
-  guides(fill = guide_legend(title = "Class", reverse = TRUE)) +
-  theme_void()
+intxtdf = lapply(taxaTablesFullNames, function(x){
+  out = readLines(x)
+  out = out[6:(length(out) - 1)]
+  outdf = as.data.frame(out)
+  outdf = as.data.frame(str_split_fixed(outdf$out, pattern = ": ", 2))
+  outdf$V1 = str_squish(outdf$V1)
+  colnames(outdf) = c("taxon", "count")
+  return(outdf)
+})
+names(intxtdf) = taxaTablesNames
+intxtdf2 = lapply(1:length(intxtdf), function(x, indata){
+  df = indata[[x]]
+  namedf = names(indata[x])
+  domain = grepl(pattern = "bacteria", x = namedf)
+  if (domain == TRUE) {
+    out = df %>%
+      mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+      mutate(count = as.integer(count)) %>%
+      mutate(perc = count / sum(count)) %>%
+      mutate(taxon2 = if_else(perc < 0.05, "Others", taxon)) %>%
+      #mutate(taxon2 = if_else(taxon == "unclassified Bacteria", "Unclassified", taxon2)) %>%
+      group_by(taxon2) %>%
+      summarise(percSum = sum(perc), .groups = "keep") %>%
+      ungroup() %>%
+      arrange((percSum)) %>%
+      mutate(fctlevel = 1:nrow(.)) %>%
+      mutate(fctlevel = if_else(taxon2 == "Others", as.integer(nrow(.) + 10000), fctlevel)) %>%
+      arrange(fctlevel) %>%
+      mutate(taxon2 = factor(taxon2)) %>%
+      mutate(taxon2 = fct_inorder(taxon2))
+  }else{
+    out = df %>%
+      mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+      mutate(count = as.integer(count)) %>%
+      mutate(perc = count / sum(count)) %>%
+      mutate(taxon2 = taxon) %>%
+      #mutate(taxon2 = if_else(taxon == "unclassified Bacteria", "Unclassified", taxon2)) %>%
+      group_by(taxon2) %>%
+      summarise(percSum = sum(perc), .groups = "keep") %>%
+      ungroup() %>%
+      arrange((percSum)) %>%
+      mutate(fctlevel = 1:nrow(.)) %>%
+      mutate(fctlevel = if_else(taxon2 == "Others", as.integer(nrow(.) + 10000), fctlevel)) %>%
+      arrange(fctlevel) %>%
+      mutate(taxon2 = factor(taxon2)) %>%
+      mutate(taxon2 = fct_inorder(taxon2))
+  }
+  return(out)
+}, indata = intxtdf)
+names(intxtdf2) = taxaTablesName
+lapply(1:length(intxtdf2), function(x, indata){
+  df = indata[[x]]
+  dfname = names(indata[x])
+  taxon = gsub(pattern = ".*_outfmt0_(.*)_summary.txt", replacement = "\\1", x = dfname)
+  ggplot(df, aes(x="", y=percSum, fill = fct_rev(taxon2))) +
+    geom_bar(stat="identity", width=1) +
+    coord_polar("y", start=0) +
+    labs(title = taxon,
+         x = "taxon",
+         y = "Percentage") +
+    guides(fill = guide_legend(title = taxon, reverse = TRUE)) +
+    theme_void()
+  #ggsave(filename = paste0("megan_", dfname, taxon, "_newBLASTrun_limit", ".eps"), path = "./figures")
+}, indata = intxtdf2)
 
 ###TABLE S5###
 topSpecies = function(taxonTable, topn = 10){
