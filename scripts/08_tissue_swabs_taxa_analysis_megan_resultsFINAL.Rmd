@@ -1,0 +1,121 @@
+---
+title: "Tissue swabs taxa analysis Megan results"
+output: html_document
+---
+
+Library import
+
+```{r}
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(forcats)
+```
+
+
+Getting a list of Megan output files for import.
+
+```{r}
+taxaTablesFullNames = list.files(path = "./path/to/megan/output/", full.names = TRUE)
+taxaTablesNames = list.files(path = "./path/to/megan/output/")
+
+taxaTableList = lapply(taxaTablesFullNames, read.table, sep = "\t")
+names(taxaTableList) = taxaTablesNames
+
+```
+
+Importing output files from Megan, and making a data frame.
+
+```{r}
+intxtdf = lapply(taxaTablesFullNames, function(x){
+
+  out = readLines(x)
+
+  out = out[6:(length(out) - 1)]
+  outdf = as.data.frame(out)
+  outdf = as.data.frame(str_split_fixed(outdf$out, pattern = ": ", 2))
+  outdf$V1 = str_squish(outdf$V1)
+  colnames(outdf) = c("taxon", "count")
+  return(outdf)
+
+})
+names(intxtdf) = taxaTablesNames
+
+```
+
+
+Calculating ratios, combining data, preparing it for plotting.
+
+```{r}
+intxtdf2 = lapply(1:length(intxtdf), function(x, indata){
+
+  df = indata[[x]]
+  namedf = names(indata[x])
+  
+  domain = grepl(pattern = "bacteria", x = namedf)
+  
+  if (domain == TRUE) {
+    out = df %>%
+      mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+      mutate(count = as.integer(count)) %>%
+      mutate(perc = count / sum(count)) %>%
+      mutate(taxon2 = if_else(perc < 0.05, "Others", taxon)) %>%
+      #mutate(taxon2 = if_else(taxon == "unclassified Bacteria", "Unclassified", taxon2)) %>%
+      group_by(taxon2) %>%
+      summarise(percSum = sum(perc), .groups = "keep") %>%
+      ungroup() %>%
+      arrange((percSum)) %>%
+      mutate(fctlevel = 1:nrow(.)) %>%
+      mutate(fctlevel = if_else(taxon2 == "Others", as.integer(nrow(.) + 10000), fctlevel)) %>%
+      arrange(fctlevel) %>%
+      mutate(taxon2 = factor(taxon2)) %>%
+      mutate(taxon2 = fct_inorder(taxon2))
+  }else{
+    out = df %>%
+      mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+      mutate(count = as.integer(count)) %>%
+      mutate(perc = count / sum(count)) %>%
+      mutate(taxon2 = taxon) %>%
+      #mutate(taxon2 = if_else(taxon == "unclassified Bacteria", "Unclassified", taxon2)) %>%
+      group_by(taxon2) %>%
+      summarise(percSum = sum(perc), .groups = "keep") %>%
+      ungroup() %>%
+      arrange((percSum)) %>%
+      mutate(fctlevel = 1:nrow(.)) %>%
+      mutate(fctlevel = if_else(taxon2 == "Others", as.integer(nrow(.) + 10000), fctlevel)) %>%
+      arrange(fctlevel) %>%
+      mutate(taxon2 = factor(taxon2)) %>%
+      mutate(taxon2 = fct_inorder(taxon2))
+    
+  }
+  
+  return(out)
+}, indata = intxtdf)
+
+names(intxtdf2) = taxaTablesNames
+```
+
+Plotting pie charts.
+
+```{r}
+lapply(1:length(intxtdf2), function(x, indata){
+  
+  df = indata[[x]]
+  dfname = names(indata[x])
+  
+  taxon = gsub(pattern = ".*_outfmt0_(.*)_summary.txt", replacement = "\\1", x = dfname)
+  
+  ggplot(df, aes(x="", y=percSum, fill = fct_rev(taxon2))) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  labs(title = taxon,
+       x = "taxon",
+       y = "Percentage") +
+  guides(fill = guide_legend(title = taxon, reverse = TRUE)) +
+  theme_void()
+  
+  #uncomment and adjust path accordingy to save the figures 
+  #ggsave(filename = paste0("megan_", dfname, taxon, "_newBLASTrun_limit", ".eps"), path = "./figures")
+}, indata = intxtdf2)
+```
+

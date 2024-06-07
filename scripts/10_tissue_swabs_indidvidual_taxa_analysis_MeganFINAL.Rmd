@@ -1,0 +1,163 @@
+---
+title: "Tissue swabs individual taxa analysis Megan"
+output: html_document
+---
+
+Library import.
+
+```{r}
+library(stringr)
+library(dplyr)
+library(tidyr)
+```
+
+Getting a list of Megan output files for import.
+
+```{r}
+taxaTablesFullNames = list.files(path = "./path/to/megan/output/", full.names = TRUE)
+taxaTablesNames = list.files(path = "./path/to/megan/output/")
+
+taxaTableList = lapply(taxaTablesFullNames, read.table, sep = "\t")
+names(taxaTableList) = taxaTablesNames
+
+```
+
+Importing data
+
+```{r}
+intxtdf = lapply(taxaTablesFullNames, function(x){
+
+  out = readLines(x)
+
+  out = out[6:(length(out) - 1)]
+  outdf = as.data.frame(out)
+  outdf = as.data.frame(str_split_fixed(outdf$out, pattern = ": ", 2))
+  outdf$V1 = str_squish(outdf$V1)
+  colnames(outdf) = c("taxon", "count")
+  return(outdf)
+
+})
+names(intxtdf) = taxaTablesNames
+
+intxtdf2 = lapply(1:length(intxtdf), function(x, inlist){
+  
+  df = inlist[[x]]
+  dfname = names(inlist[x])
+  dfsample = gsub(pattern = "(PC\\d{3}_[ts])_.*", replacement = "\\1", x = dfname)
+  df$name = dfsample
+  return(df)
+  
+}, inlist = intxtdf)
+
+names(intxtdf2) = taxaTablesNames
+
+```
+
+Getting data for taxonomic ranks of interest separated.
+
+```{r}
+intxtdfSuperkingdoms = intxtdf2[grep(pattern = "superkingdom", x = names(intxtdf2))]
+intxtdfBacteriaOrder = intxtdf2[grep(pattern = "bacteriaOrder", x = names(intxtdf2))]
+intxtdfVerebrateClass = intxtdf2[grep(pattern = "vertebrateClass", x = names(intxtdf2))]
+
+```
+
+Using a separate function to change lists in data frames with ratios.
+
+```{r}
+source("./scripts/megan_individual_taxa_df.R")
+dfSuperkingdoms = megan_individual_taxa(intxtdfSuperkingdoms)
+dfBacteriaOrder = megan_individual_taxa(intxtdfBacteriaOrder)
+dfVertebrateClass = megan_individual_taxa(intxtdfVerebrateClass)
+
+```
+Getting the Other category for bacterial orders.
+
+```{r}
+dfBacteriaOrder_otherCol = apply(dfBacteriaOrder[,2:(ncol(dfBacteriaOrder)-1)], c(1,2), function(x){
+  out = x
+  if (is.na(x)) {
+    out = NA
+  }else if(x >= 0.05){
+    out = NA
+  }else{
+    out = x
+  }
+  return(out)
+})
+dfBacteriaOrder_otherCol = apply(dfBacteriaOrder_otherCol, 2, as.numeric)
+Other = rowSums(dfBacteriaOrder_otherCol, na.rm = TRUE)
+
+dfBacteriaOrderOut1 = apply(dfBacteriaOrder[,2:(ncol(dfBacteriaOrder)-1)], c(1,2), function(x){
+  out = x
+  if (is.na(x)) {
+    out = NA
+  }else if(x < 0.05){
+    out = NA
+  }else{
+    out = x
+  }
+  return(out)
+})
+
+dfBacteriaOrderOut = bind_cols(dfBacteriaOrder[,1], dfBacteriaOrderOut1, Other = Other, Sample_type = dfBacteriaOrder$Sample_type)
+```
+
+Writing tables. Change eval to TRUE to run this chunk.
+
+```{r, eval = F}
+write.csv(dfBacteriaOrderOut, file = "megan_bacteria_order_limit.csv")
+write.csv(dfVertebrateClass, file = "megan_chordata_class_limit.csv")
+write.csv(dfSuperkingdoms, file = "megan_eukaryota_superkingdoms_limit.csv")
+```
+
+Counting percentages for specific categories from the tables 
+
+```{r}
+
+#read count
+swabAllseq = 88577446
+tissueAllseq = 340773560
+
+#bacteria
+swabPercBacteria = bind_rows(intxtdfBacteriaOrder) %>%
+  filter(grepl(pattern = "*_s$", x = name) == TRUE) %>%
+  mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+  mutate(count = as.integer(count)) %>%
+  summarise(percBac = (sum(count)/swabAllseq)*100) %>%
+  as.numeric(.)
+
+tissuePercBacteria = bind_rows(intxtdfBacteriaOrder) %>%
+  filter(grepl(pattern = "*_t$", x = name) == TRUE) %>%
+  mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+  mutate(count = as.integer(count)) %>%
+  summarise(percBac = (sum(count)/tissueAllseq)*100) %>%
+  as.numeric(.)
+
+#fish
+swabPercFish = bind_rows(intxtdfVerebrateClass) %>%
+  filter(grepl(pattern = "*_s$", x = name) == TRUE) %>%
+  filter(taxon == "Actinopteri") %>%
+  mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+  mutate(count = as.integer(count)) %>%
+  summarise(percBac = (sum(count)/swabAllseq)*100) %>%
+  as.numeric(.)
+
+tissuePercFish = bind_rows(intxtdfVerebrateClass) %>%
+  filter(grepl(pattern = "*_t$", x = name) == TRUE) %>%
+  filter(taxon == "Actinopteri") %>%
+  mutate(count = gsub(pattern = ",", replacement = "", x = count)) %>%
+  mutate(count = as.integer(count)) %>%
+  summarise(percBac = (sum(count)/tissueAllseq)*100) %>%
+  as.numeric(.)
+
+#from megan
+swabHumanHits = 1193
+tissueHUmanHits = 3831
+
+swabHumanPerc = (swabHumanHits / swabAllseq)*100
+tissueHUmanPerc = (tissueHUmanHits / tissueAllseq)*100
+```
+
+
+

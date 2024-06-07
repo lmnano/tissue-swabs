@@ -1,0 +1,76 @@
+---
+title: "Tissue swabs taxa analysis"
+output: html_document
+---
+
+Library import.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+```
+
+
+Data import
+
+```{r}
+taxaTablesFullNames = list.files(path = "./path/to/data/", full.names = TRUE)
+taxaTablesNames = list.files(path = "./path/to/data/")
+
+taxaTableList = lapply(taxaTablesFullNames, read.table, sep = "\t")
+names(taxaTableList) = taxaTablesNames
+
+#choose one table for easier processing
+taxaTableUnfiltered = taxaTableList[[10]]
+taxaTableUnfilteredName = taxaTablesNames[[10]]
+#change the pattern if using different file names
+comboName = sub(pattern  = "taxa_.*(blast.*)_.*", replacement = "\\1", x = taxaTableUnfilteredName)
+```
+
+Filtering for highest evalue
+
+```{r}
+taxaTable = taxaTableUnfiltered %>%
+  group_by(query_id) %>%
+  arrange(evalue, desc(perc_identity), .by_group = TRUE) %>%
+  slice_head(n = 1)
+  
+```
+
+Top found species, function first
+
+```{r}
+
+topSpecies = function(taxonTable, topn = 10){
+  
+  library(dplyr)
+  
+  topSpecies = taxonTable %>%
+    ungroup() %>%
+    group_by(species) %>%
+    summarise(number = n()) %>%
+    arrange(desc(number)) %>%
+    slice_max(number, n = topn)
+  
+  return(topSpecies)
+}
+
+
+```
+
+Using the function
+
+```{r}
+
+topSpeciesAll = topSpecies(taxaTable)
+
+
+#saving tables, uncomment to write on disc, change path accordingly
+#write.table(topSpeciesAll, file = paste0("./data/", "topSpeciesAll_", comboName, ".tsv"), sep = "\t")
+
+
+```
+
+
+
