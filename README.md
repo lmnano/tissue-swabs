@@ -6,8 +6,6 @@ This is a project about comparing tissue and skin swab DNA samples from Proteus 
 
 ## Scripts
 
-### Work in progress, scripts not yet uploaded
-
 First scripts (01_makeBlastDB.sh, 01_bowtie2build.sh) are for making a blast databases from catalogs and genome to use as reference when blasting and building a bowtie2 index, respectively.
 
 Following this are the scripts for blasting catalogs against different databases (tissue, genome) and bowte2 indexes. There were three different options used for this BLAST (02_blastAll.sh), local Bowtie2 (02_bowtie2Local.sh) and global Bowtie2 (02_bowtie2Global.sh). The Bowtie2 scripts are followed by the 03_sam2bam.sh script which transforms the sam output from bowtie2 to (sorted) bam and adds bai index file. The 04_run_tissue_swab_top_hits.R.sh filters the blast results.
